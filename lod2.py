@@ -17,7 +17,8 @@ Subcommands
   build    parse, clip, project, write SVG/OBJ/CSV
   probe    dump stats for one landmark (heights, roof types) - sanity check
   find     locate a building by geometric signature, offline
-  geojson  footprints + heights as GeoJSON, for web maps
+  geojson  footprints + heights as GeoJSON (prisms; a client extrudes them)
+  glb      the real wall + roof surfaces as binary glTF, for web maps
 
 Geometry sources
 ----------------
@@ -48,6 +49,7 @@ import json
 import math
 import os
 import shutil
+import struct
 import sys
 import tempfile
 import urllib.request
@@ -865,6 +867,368 @@ def buildings_from_osm(mark: dict) -> list[Building]:
     return out
 
 
+# --------------------------------------------------------------------------
+# GLB - real surfaces for the web map
+# --------------------------------------------------------------------------
+#
+# `geojson` ships a footprint and one height, so a client can only extrude a
+# prism. That throws away everything that makes a building recognisable: LoD2
+# holds 31,114 surfaces for the trip area, 5,597 of them roofs, and the prism
+# approximation discards 38% of the geometry and 100% of the roof shape.
+#
+# This writes the surfaces themselves.
+#
+# Coordinates are local ENU metres (east / north / up) about a stated
+# lon/lat origin, NOT UTM. UTM grid north is up to a degree off true north in
+# Berlin, and a web Mercator map is aligned to true north - baking UTM would
+# skew the whole scene by ~50 m at the edges. The client projects the origin,
+# works out pixels-per-metre, and everything else follows.
+#
+# COLOR_0 carries shading only, as grey. The actual hue comes from the
+# material's baseColorFactor, which glTF multiplies in - so the client can
+# retint roofs, walls and monuments per theme without touching the mesh.
+
+GLB_KINDS = ("roof", "wall", "monument")
+MONUMENT_MAX_M2 = 10.0      # below this a footprint is a monument object
+
+
+def _tri_fan_or_ear(ring):
+    """Triangulate one planar polygon, returning index triples into `ring`.
+
+    Fan triangulation is only valid for convex polygons, and 4,538 of the
+    trip area's faces have more than four sides, so anything past a triangle
+    goes through ear clipping instead. Holes are dropped - 26 faces out of
+    32,322 have any, all of them interior light wells.
+    """
+    n = len(ring) - 1                      # ring is closed
+    if n < 3:
+        return []
+    if n == 3:
+        return [(0, 1, 2)]
+
+    # Project onto the dominant plane so the clip runs in 2D.
+    ax = ay = az = 0.0
+    for i in range(n):
+        x1, y1, z1 = ring[i]
+        x2, y2, z2 = ring[(i + 1) % n]
+        ax += (y1 - y2) * (z1 + z2)
+        ay += (z1 - z2) * (x1 + x2)
+        az += (x1 - x2) * (y1 + y2)
+    nx, ny, nz = abs(ax), abs(ay), abs(az)
+    if nx >= ny and nx >= nz:
+        flat = [(p[1], p[2]) for p in ring[:n]]
+    elif ny >= nz:
+        flat = [(p[2], p[0]) for p in ring[:n]]
+    else:
+        flat = [(p[0], p[1]) for p in ring[:n]]
+
+    def area2(a, b, c):
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    total = sum(area2(flat[0], flat[i], flat[i + 1]) for i in range(1, n - 1))
+    ccw = total > 0
+    idx = list(range(n))
+    out = []
+    guard = 0
+    while len(idx) > 3 and guard < 4 * n:
+        guard += 1
+        clipped = False
+        for k in range(len(idx)):
+            i0 = idx[k - 1]
+            i1 = idx[k]
+            i2 = idx[(k + 1) % len(idx)]
+            a, b, c = flat[i0], flat[i1], flat[i2]
+            cross = area2(a, b, c)
+            if (cross <= 0) if ccw else (cross >= 0):
+                continue                    # reflex vertex, not an ear
+            inside = False
+            for j in idx:
+                if j in (i0, i1, i2):
+                    continue
+                p = flat[j]
+                d1 = area2(a, b, p)
+                d2 = area2(b, c, p)
+                d3 = area2(c, a, p)
+                if (d1 >= 0) == (d2 >= 0) == (d3 >= 0):
+                    inside = True
+                    break
+            if inside:
+                continue
+            out.append((i0, i1, i2))
+            idx.pop(k)
+            clipped = True
+            break
+        if not clipped:
+            break                           # degenerate; fall through to a fan
+    if len(idx) == 3:
+        out.append((idx[0], idx[1], idx[2]))
+    elif len(idx) > 3:
+        out.extend((idx[0], idx[i], idx[i + 1]) for i in range(1, len(idx) - 1))
+    return out
+
+
+def _glb_bytes(prims: dict, origin: tuple[float, float], datum: float, note: str) -> bytes:
+    """Assemble a binary glTF by hand. No dependency, and the file is simple:
+    one mesh, one primitive per surface kind, unlit materials."""
+    import base64  # noqa: F401  (kept out of module scope; only used here)
+
+    buf = bytearray()
+    views, accessors, materials, primitives = [], [], [], []
+
+    def pad4(b: bytearray):
+        while len(b) % 4:
+            b.append(0)
+
+    for kind in GLB_KINDS:
+        data = prims.get(kind)
+        if not data or not data["idx"]:
+            continue
+        pos, col, idx = data["pos"], data["col"], data["idx"]
+
+        pad4(buf)
+        pos_off = len(buf)
+        buf.extend(struct.pack(f"<{len(pos)}f", *pos))
+        views.append({"buffer": 0, "byteOffset": pos_off, "byteLength": len(pos) * 4,
+                      "target": 34962})
+        pad4(buf)
+        col_off = len(buf)
+        buf.extend(bytes(col))
+        views.append({"buffer": 0, "byteOffset": col_off, "byteLength": len(col),
+                      "target": 34962})
+        pad4(buf)
+        idx_off = len(buf)
+        buf.extend(struct.pack(f"<{len(idx)}I", *idx))
+        views.append({"buffer": 0, "byteOffset": idx_off, "byteLength": len(idx) * 4,
+                      "target": 34963})
+
+        xs = pos[0::3]
+        ys = pos[1::3]
+        zs = pos[2::3]
+        vpos, vcol, vidx = len(views) - 3, len(views) - 2, len(views) - 1
+        accessors.append({"bufferView": vpos, "componentType": 5126, "count": len(pos) // 3,
+                          "type": "VEC3",
+                          "min": [min(xs), min(ys), min(zs)],
+                          "max": [max(xs), max(ys), max(zs)]})
+        accessors.append({"bufferView": vcol, "componentType": 5121, "normalized": True,
+                          "count": len(col) // 4, "type": "VEC4"})
+        accessors.append({"bufferView": vidx, "componentType": 5125,
+                          "count": len(idx), "type": "SCALAR"})
+        materials.append({
+            "name": kind,
+            # White base: the client sets baseColorFactor from its CSS tokens,
+            # and COLOR_0's grey multiplies into it.
+            "pbrMetallicRoughness": {"baseColorFactor": [1, 1, 1, 1],
+                                     "metallicFactor": 0, "roughnessFactor": 1},
+            "extensions": {"KHR_materials_unlit": {}},
+        })
+        primitives.append({
+            "attributes": {"POSITION": len(accessors) - 3, "COLOR_0": len(accessors) - 2},
+            "indices": len(accessors) - 1,
+            "material": len(materials) - 1,
+            "mode": 4,
+        })
+
+    gltf = {
+        "asset": {"version": "2.0", "generator": "lod2.py"},
+        "extensionsUsed": ["KHR_materials_unlit"],
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0, "name": "berlin"}],
+        "meshes": [{"name": "berlin", "primitives": primitives}],
+        "materials": materials,
+        "accessors": accessors,
+        "bufferViews": views,
+        "buffers": [{"byteLength": len(buf)}],
+        "extras": {
+            # Everything the client needs to place this on a map.
+            "originLon": origin[0], "originLat": origin[1],
+            "datum_m": datum, "units": "metres, ENU about origin, Z up",
+            "kinds": [m["name"] for m in materials],
+            "note": note,
+        },
+    }
+
+    js = json.dumps(gltf, separators=(",", ":")).encode("utf-8")
+    while len(js) % 4:
+        js += b" "
+    pad4(buf)
+    total = 12 + 8 + len(js) + 8 + len(buf)
+    out = bytearray()
+    out.extend(b"glTF")
+    out.extend(struct.pack("<II", 2, total))
+    out.extend(struct.pack("<I", len(js)))
+    out.extend(b"JSON")
+    out.extend(js)
+    out.extend(struct.pack("<I", len(buf)))
+    out.extend(b"BIN\x00")
+    out.extend(buf)
+    return bytes(out)
+
+
+def cmd_glb(args):
+    """Bake real LoD2 surfaces (plus OSM hero solids) into one GLB."""
+    marks = load_landmarks(ROOT / args.landmarks, args.only)
+    if args.radius is not None:
+        for m in marks:
+            m["radius_m"] = args.radius
+
+    def eff_source(m):
+        return (args.source or m.get("source") or "lod2").lower()
+
+    hero_marks = [m for m in marks if eff_source(m) == "osm"]
+    # Collect LoD2 inside the hero discs too, even though OSM replaces it
+    # there. The displaced buildings are discarded, but first they give the
+    # exact ground level to sit the OSM parts on - and they are the only
+    # source for it. Sampling from further out is worth several metres of
+    # error: the Berliner Dom's own ground is 32.3 m, the nearest collected
+    # neighbours say 36.6 m.
+    for m in hero_marks:
+        m["source"] = "both"
+    found = collect(marks, args.min_height, args.source)
+    for m in hero_marks:
+        m["source"] = "osm"
+    hero_discs = [(m["east"], m["north"], m["radius_m"]) for m in hero_marks]
+
+    def centroid_xy(b):
+        vs = list(b.vertices())
+        return (sum(v[0] for v in vs) / len(vs), sum(v[1] for v in vs) / len(vs))
+
+    # Collect LoD2 first, dropping anything a hero replaces.
+    lod2_b, osm_b, seen = [], [], set()
+    for m in marks:
+        for b in found[m["id"]]:
+            if b.gml_id in seen:
+                continue
+            seen.add(b.gml_id)
+            (osm_b if b.function == "osm" else lod2_b).append((m["id"], b))
+
+    kept_lod2 = []
+    for lid, b in lod2_b:
+        cx, cy = centroid_xy(b)
+        if any((cx - e) ** 2 + (cy - n) ** 2 <= r * r for e, n, r in hero_discs):
+            continue
+        kept_lod2.append(b)
+
+    # OSM heights are metres above ground; LoD2 is absolute DHHN2016. Rather
+    # than hand-setting base_z_m per hero, take the ground level from the LoD2
+    # buildings that the hero displaced - they are, by definition, right there.
+    lod2_ground = [(centroid_xy(b), min(v[2] for v in b.vertices())) for _l, b in lod2_b]
+    all_ground = sorted(z for _c, z in lod2_ground)
+
+    def ground_near(e: float, n: float, r: float) -> float | None:
+        """Median LoD2 ground level near a point, widening until something bites.
+
+        A hero usually displaces LoD2 buildings that are right there, and those
+        give the datum directly. The Berliner Dom is the exception: no trip stop
+        reaches it, so no LoD2 was ever collected inside its disc. Without the
+        widening step it would keep a zero datum and sit ~34 m below the city.
+        """
+        for mult in (1, 3, 8, 25):
+            rr = (r * mult) ** 2
+            zs = sorted(z for (cx, cy), z in lod2_ground
+                        if (cx - e) ** 2 + (cy - n) ** 2 <= rr)
+            if zs:
+                return zs[len(zs) // 2]
+        return all_ground[len(all_ground) // 2] if all_ground else None
+
+    ground_by_hero: dict[str, float] = {}
+    for m in hero_marks:
+        g = ground_near(m["east"], m["north"], m["radius_m"])
+        if g is not None:
+            ground_by_hero[m["id"]] = g
+    for lid, b in osm_b:
+        dz = ground_by_hero.get(lid)
+        if dz:
+            for f in b.faces:
+                f.ring = [(x, y, z + dz) for x, y, z in f.ring]
+
+    buildings = kept_lod2 + [b for _l, b in osm_b]
+    if not buildings:
+        sys.exit("No buildings collected.")
+
+    # ── project to lon/lat, then to local ENU metres ────────────
+    back = Transformer.from_crs("EPSG:25833", "EPSG:4326", always_xy=True)
+    all_xy = [(x, y) for b in buildings for f in b.faces
+              if f.kind in ("roof", "wall") for x, y, _z in f.ring]
+    lons, lats = back.transform([p[0] for p in all_xy], [p[1] for p in all_xy])
+    lut = {}
+    for (x, y), lo, la in zip(all_xy, lons, lats):
+        lut[(x, y)] = (lo, la)
+
+    lon0 = sum(lons) / len(lons)
+    lat0 = sum(lats) / len(lats)
+    mlon = 111320.0 * math.cos(math.radians(lat0))
+    mlat = 110540.0
+    datum = min(z for b in buildings for f in b.faces
+                if f.kind in ("roof", "wall") for _x, _y, z in f.ring)
+
+    def foot_area(b):
+        a = 0.0
+        for f in b.faces:
+            if f.kind != "ground":
+                continue
+            r = f.ring
+            a += abs(sum(r[i][0] * r[i + 1][1] - r[i + 1][0] * r[i][1]
+                         for i in range(len(r) - 1))) / 2
+        return a
+
+    prims = {k: {"pos": [], "col": bytearray(), "idx": [], "map": {}} for k in GLB_KINDS}
+    holes_dropped = 0
+
+    def emit(kind, xyz, shade):
+        p = prims[kind]
+        key = (round(xyz[0], 3), round(xyz[1], 3), round(xyz[2], 3), shade)
+        i = p["map"].get(key)
+        if i is None:
+            i = len(p["pos"]) // 3
+            p["map"][key] = i
+            p["pos"].extend(xyz)
+            p["col"].extend((shade, shade, shade, 255))
+        return i
+
+    for b in buildings:
+        monument = b.function != "osm" and foot_area(b) < MONUMENT_MAX_M2
+        for f in b.faces:
+            if f.kind not in ("roof", "wall"):
+                continue
+            if f.holes:
+                holes_dropped += 1
+            nrm = f.normal()
+            # Same north-west key light the SVG writer uses, so the two agree.
+            lam = max(0.0, nrm[0] * -0.45 + nrm[1] * -0.35 + nrm[2] * 0.82)
+            shade = max(0, min(255, round((0.60 + 0.40 * lam) * 255)))
+            kind = "monument" if monument else f.kind
+            enu = []
+            for x, y, z in f.ring:
+                lo, la = lut[(x, y)]
+                enu.append(((lo - lon0) * mlon, (la - lat0) * mlat, z - datum))
+            for a, c, d in _tri_fan_or_ear(enu):
+                prims[kind]["idx"].extend(
+                    (emit(kind, enu[a], shade), emit(kind, enu[c], shade), emit(kind, enu[d], shade))
+                )
+
+    note = (f"Berlin LoD2 (dl-de/zero-2-0) + OSM (ODbL) for {len(hero_marks)} hero landmarks. "
+            f"{len(buildings)} buildings.")
+    blob = _glb_bytes(prims, (round(lon0, 7), round(lat0, 7)), round(datum, 2), note)
+    out = Path(args.out) if args.out else OUT / "berlin.glb"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(blob)
+
+    tris = sum(len(p["idx"]) // 3 for p in prims.values())
+    verts = sum(len(p["pos"]) // 3 for p in prims.values())
+    print(f"\n{len(buildings)} buildings -> {out} ({out.stat().st_size/1e6:.2f} MB)")
+    for k in GLB_KINDS:
+        if prims[k]["idx"]:
+            print(f"  {k:9s} {len(prims[k]['idx'])//3:7,d} tris  {len(prims[k]['pos'])//3:7,d} verts")
+    print(f"  {'total':9s} {tris:7,d} tris  {verts:7,d} verts")
+    print(f"  origin {lon0:.6f},{lat0:.6f}  datum {datum:.2f} m")
+    if holes_dropped:
+        print(f"  ! {holes_dropped} face(s) had interior rings; holes not triangulated")
+    if ground_by_hero:
+        pairs = ", ".join(f"{k.replace('hero-','')} {v:.1f}m" for k, v in ground_by_hero.items())
+        print(f"  hero ground levels taken from displaced LoD2: {pairs}")
+
+
 def cmd_geojson(args):
     """Emit map-anchored building footprints as GeoJSON (WGS84).
 
@@ -1060,6 +1424,13 @@ def main():
     fd.add_argument("--roof", help=f"filter by form: {', '.join(sorted(set(ROOF_TYPES.values())))}")
     fd.add_argument("--limit", type=int, default=25)
     fd.set_defaults(func=cmd_find)
+
+    gb = sub.add_parser("glb", help="real LoD2 surfaces as a binary glTF, for web maps")
+    gb.add_argument("--out", help="output path (default out/berlin.glb)")
+    gb.add_argument("--radius", type=float, help="override every landmark's radius_m")
+    gb.add_argument("--min-height", type=float, default=2.0,
+                    help="skip buildings shorter than this (m); 0 keeps everything")
+    gb.set_defaults(func=cmd_glb)
 
     gj = sub.add_parser("geojson", help="footprints + heights as GeoJSON, for web maps")
     gj.add_argument("--out", help="output path (default out/buildings.geojson)")

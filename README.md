@@ -196,6 +196,47 @@ landmarks. Interactive picker, no bulk API, six export formats.
 
 ---
 
+## `glb` — real surfaces for a web map
+
+`geojson` emits a footprint and one height, so a client can only extrude a
+prism. That is fine for a plan view and useless for anything else: it discards
+38% of the geometry and **100% of the roof shape**. Every building in Berlin
+comes out a flat-topped box.
+
+`glb` ships the surfaces themselves.
+
+```bash
+python3 lod2.py --landmarks map-buildings.json glb --out out/berlin.glb
+npx @gltf-transform/cli meshopt out/berlin.glb out/berlin.mo.glb
+```
+
+For the trip area that is 87,750 triangles — 3.05 MB raw, **616 kB after
+meshopt, ~290 kB gzipped**. Against the prism GeoJSON's 1.30 MB / 160 kB
+gzipped, roughly double the transfer for actual architecture.
+
+Three primitives, one per surface kind (`roof`, `wall`, `monument`), each
+unlit with a white base colour. `COLOR_0` carries **only** a shading factor as
+grey, so a client sets `baseColorFactor` from its own palette and glTF
+multiplies the two — retinting for light/dark needs no rebuild.
+
+**Coordinates are local ENU metres** (X east, Y north, Z up) about a lon/lat
+origin in the file's `extras`, deliberately *not* UTM. UTM grid north is up to
+a degree off true north in Berlin, and a web-Mercator basemap is aligned to
+true north — baking UTM would skew the scene by ~50 m at the edges. A client
+projects the one origin, works out pixels per metre, and everything follows.
+
+Mixing sources is handled automatically. Inside a hero disc OSM replaces LoD2,
+and the displaced LoD2 buildings are used first to read off the exact ground
+level, so the OSM parts (whose heights are metres above ground) land on the
+LoD2 datum without any hand-set `base_z_m`. Berliner Dom: 32.3 m, Reichstag:
+35.1 m, Bebelplatz: 31.7 m.
+
+Faces past a triangle are ear-clipped rather than fanned — 4,538 of the trip
+area's faces have more than four sides and a fan would fold the concave ones.
+Interior rings are dropped; 24 faces out of 32,322 have any.
+
+---
+
 ## Sources: `--source lod2 | osm | both`
 
 `lod2.py` reads two geometry sources. Set `"source"` per landmark, or
