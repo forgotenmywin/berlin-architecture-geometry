@@ -233,7 +233,17 @@ LoD2 datum without any hand-set `base_z_m`. Berliner Dom: 32.3 m, Reichstag:
 
 Faces past a triangle are ear-clipped rather than fanned — 4,538 of the trip
 area's faces have more than four sides and a fan would fold the concave ones.
-Interior rings are dropped; 24 faces out of 32,322 have any.
+Interior rings are bridged into the exterior first, so light wells stay open;
+24 faces out of 32,322 have any.
+
+Roof forms come in two families. **Loft** shapes taper toward the centroid as
+they rise — dome, onion, cone, pyramidal, hipped, mansard — and are built by
+scaling the ring inward step by step. **Ridge** shapes are height fields over
+the footprint — gabled, gambrel, barrel/round, skillion — built by lifting a
+triangulated cap and dropping a skirt to the eaves, which is what puts vertical
+ends on a gable instead of quietly hipping it. Ridge direction comes from
+`roof:direction` if present, else `roof:orientation` against the footprint's
+minimum-area long axis; 29 of the 35 ridge-family parts carry one of the two.
 
 ---
 

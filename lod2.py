@@ -660,7 +660,18 @@ def cmd_find(args):
 
 # Roof shapes this understands. Anything else falls back to flat, and the
 # build reports what it approximated rather than silently lying.
-_ROOF_SOLID = {"dome", "onion", "pyramidal", "hipped", "cone", "conical"}
+# Two families, because they are built differently.
+#
+# LOFT shapes taper toward the footprint's centroid as they rise - a dome, a
+# pyramid, a mansard. Built by scaling the ring inward step by step.
+#
+# RIDGE shapes are height fields over the footprint: every point's height is a
+# function of how far it sits from a ridge line. A gable, a barrel vault, a
+# lean-to. Built by lifting a triangulated cap and dropping a skirt to the
+# eaves, which is what puts vertical ends on a gable rather than hipping it.
+_ROOF_LOFT = {"dome", "onion", "pyramidal", "hipped", "cone", "conical", "mansard"}
+_ROOF_RIDGE = {"gabled", "gambrel", "round", "barrel", "skillion", "shed", "lean_to"}
+_ROOF_SOLID = _ROOF_LOFT | _ROOF_RIDGE
 _DOME_SEGMENTS = 8          # profile steps; 8 reads smooth at plate scale
 
 
@@ -714,13 +725,18 @@ def _dome_faces(ring, z0: float, z1: float, shape: str) -> list[Face]:
     cx = sum(p[0] for p in pts) / len(pts)
     cy = sum(p[1] for p in pts) / len(pts)
     curved = shape in ("dome", "onion", "cone", "conical")
-    steps = _DOME_SEGMENTS if curved else 1
+    mansard = shape == "mansard"
+    steps = _DOME_SEGMENTS if curved else (2 if mansard else 1)
 
     def level(i: int):
         t = i / steps
         if curved:
             a = t * math.pi / 2
             return math.cos(a), z0 + (z1 - z0) * math.sin(a)
+        if mansard:
+            # Steep lower slope, shallow upper deck — the mansard silhouette.
+            # Most of the height is gained in the first, inset segment.
+            return (1.0, z0) if t == 0 else ((0.72, z0 + (z1 - z0) * 0.72) if t < 1 else (0.0, z1))
         return 1.0 - t, z0 + (z1 - z0) * t
 
     faces: list[Face] = []
@@ -736,6 +752,98 @@ def _dome_faces(ring, z0: float, z1: float, shape: str) -> list[Face]:
             d = (cx + (x0 - cx) * s1, cy + (y0 - cy) * s1, zb)
             ring4 = [a, b, c, d, a] if s1 > 1e-9 else [a, b, c, a]
             faces.append(Face(ring=ring4, kind="roof"))
+    return faces
+
+
+def _min_area_axis(pts) -> float:
+    """Angle of the long side of the footprint's minimum-area bounding box.
+
+    OSM's `roof:orientation` is defined relative to the building's longest
+    side, so a gable needs that axis before it can be oriented. Testing each
+    edge direction is the standard construction and is exact for a rectangle,
+    which most of these footprints are.
+    """
+    best = (float("inf"), 0.0)
+    n = len(pts)
+    for i in range(n):
+        x0, y0 = pts[i]
+        x1, y1 = pts[(i + 1) % n]
+        ang = math.atan2(y1 - y0, x1 - x0)
+        ca, sa = math.cos(-ang), math.sin(-ang)
+        us = [p[0] * ca - p[1] * sa for p in pts]
+        vs = [p[0] * sa + p[1] * ca for p in pts]
+        du, dv = max(us) - min(us), max(vs) - min(vs)
+        area = du * dv
+        if area < best[0]:
+            best = (area, ang if du >= dv else ang + math.pi / 2)
+    return best[1]
+
+
+def _ridge_roof_faces(ring, z0: float, z1: float, shape: str, tags: dict) -> list[Face]:
+    """Build a roof whose height is a function of distance from a ridge line.
+
+    Covers gabled, gambrel, barrel ('round') and skillion. The cap is the
+    footprint triangulated and lifted; a skirt then drops each boundary edge
+    back to the eaves, which is what gives a gable its vertical ends instead
+    of quietly turning it into a hip.
+    """
+    pts = ring[:-1]
+    if len(pts) < 3:
+        return []
+
+    # Ridge direction: an explicit bearing wins, then orientation relative to
+    # the long axis, then the long axis itself.
+    axis = _min_area_axis(pts)
+    raw_dir = _osm_metres(tags.get("roof:direction"))
+    if raw_dir is not None:
+        # Compass bearing -> vector in (east, north).
+        rad = math.radians(raw_dir)
+        ridge = (math.sin(rad), math.cos(rad))
+    else:
+        a = axis
+        if (tags.get("roof:orientation") or "along").lower() == "across":
+            a += math.pi / 2
+        ridge = (math.cos(a), math.sin(a))
+
+    lean = shape in ("skillion", "shed", "lean_to")
+    # For a lean-to the height ramps along the slope; otherwise it falls away
+    # on both sides of the ridge, so measure perpendicular to it.
+    axis_v = ridge if lean else (-ridge[1], ridge[0])
+    proj = [p[0] * axis_v[0] + p[1] * axis_v[1] for p in pts]
+    lo, hi = min(proj), max(proj)
+    span = (hi - lo) or 1.0
+    mid = (lo + hi) / 2
+    half = span / 2
+
+    def height(t_signed: float) -> float:
+        if lean:
+            return z0 + (z1 - z0) * ((t_signed - lo) / span)
+        t = min(1.0, abs(t_signed - mid) / half)          # 0 at ridge, 1 at eaves
+        if shape in ("round", "barrel"):
+            return z0 + (z1 - z0) * math.sqrt(max(0.0, 1.0 - t * t))
+        if shape == "gambrel":
+            # Two pitches: shallow near the ridge, steep near the eaves.
+            drop = 0.35 * (t / 0.5) if t < 0.5 else 0.35 + 0.65 * ((t - 0.5) / 0.5)
+            return z1 - (z1 - z0) * drop
+        return z1 - (z1 - z0) * t                          # gabled
+
+    lifted = [(p[0], p[1], height(pr)) for p, pr in zip(pts, proj)]
+    faces: list[Face] = []
+
+    cap, tris = _tri_fan_or_ear(lifted + [lifted[0]])
+    for a, b, c in tris:
+        faces.append(Face(ring=[cap[a], cap[b], cap[c], cap[a]], kind="roof"))
+
+    # Skirt: fills the vertical gap under the cap at the gable ends.
+    for j in range(len(lifted)):
+        x0, y0, h0 = lifted[j]
+        x1, y1, h1 = lifted[(j + 1) % len(lifted)]
+        if h0 - z0 < 1e-6 and h1 - z0 < 1e-6:
+            continue
+        faces.append(Face(
+            ring=[(x0, y0, z0), (x1, y1, z0), (x1, y1, h1), (x0, y0, h0), (x0, y0, z0)],
+            kind="roof",
+        ))
     return faces
 
 
@@ -789,7 +897,9 @@ def _osm_part_to_building(gml_id: str, ring, tags: dict, base_z: float) -> Build
             )
 
     # Roof.
-    if roof_h > 1e-6 and shape in _ROOF_SOLID:
+    if roof_h > 1e-6 and shape in _ROOF_RIDGE:
+        b.faces.extend(_ridge_roof_faces(flat, z_eaves, z_top, shape, tags))
+    elif roof_h > 1e-6 and shape in _ROOF_LOFT:
         b.faces.extend(_dome_faces([(x, y) for x, y in flat], z_eaves, z_top, shape))
     else:
         b.faces.append(Face(ring=[(x, y, z_eaves) for x, y in flat], kind="roof"))
@@ -892,19 +1002,54 @@ GLB_KINDS = ("roof", "wall", "monument")
 MONUMENT_MAX_M2 = 10.0      # below this a footprint is a monument object
 
 
-def _tri_fan_or_ear(ring):
-    """Triangulate one planar polygon, returning index triples into `ring`.
+def _bridge_holes(ring, holes):
+    """Splice interior rings into the exterior so one ear clip covers both.
+
+    Each hole is joined to the outer boundary by a zero-width bridge cut at
+    the closest pair of vertices, walked around, and closed back. The result
+    is a single degenerate-but-simple polygon that ear clipping handles
+    without knowing holes existed. Standard construction, and it is why light
+    wells are no longer filled in.
+    """
+    outer = list(ring[:-1])
+    for hole in holes:
+        hpts = list(hole[:-1])
+        if len(hpts) < 3:
+            continue
+        # Closest vertex pair between the current boundary and this hole.
+        best = None
+        for i, a in enumerate(outer):
+            for j, b in enumerate(hpts):
+                d = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
+                if best is None or d < best[0]:
+                    best = (d, i, j)
+        if best is None:
+            continue
+        _d, i, j = best
+        # Walk the hole in reverse so its winding opposes the exterior.
+        loop = hpts[j::-1] + hpts[:j:-1]
+        outer = outer[: i + 1] + loop + [loop[0]] + outer[i:]
+    return outer + [outer[0]]
+
+
+def _tri_fan_or_ear(ring, holes=None):
+    """Triangulate one planar polygon.
+
+    Returns `(ring, triangles)` — the ring as well, because bridging holes
+    rewrites it, so the index triples refer to the returned ring and not the
+    one passed in.
 
     Fan triangulation is only valid for convex polygons, and 4,538 of the
     trip area's faces have more than four sides, so anything past a triangle
-    goes through ear clipping instead. Holes are dropped - 26 faces out of
-    32,322 have any, all of them interior light wells.
+    goes through ear clipping instead.
     """
+    if holes:
+        ring = _bridge_holes(ring, holes)
     n = len(ring) - 1                      # ring is closed
     if n < 3:
-        return []
+        return ring, []
     if n == 3:
-        return [(0, 1, 2)]
+        return ring, [(0, 1, 2)]
 
     # Project onto the dominant plane so the clip runs in 2D.
     ax = ay = az = 0.0
@@ -964,7 +1109,7 @@ def _tri_fan_or_ear(ring):
         out.append((idx[0], idx[1], idx[2]))
     elif len(idx) > 3:
         out.extend((idx[0], idx[i], idx[i + 1]) for i in range(1, len(idx) - 1))
-    return out
+    return ring, out
 
 
 def _glb_bytes(prims: dict, origin: tuple[float, float], datum: float, note: str) -> bytes:
@@ -1173,7 +1318,7 @@ def cmd_glb(args):
         return a
 
     prims = {k: {"pos": [], "col": bytearray(), "idx": [], "map": {}} for k in GLB_KINDS}
-    holes_dropped = 0
+    holes_bridged = 0
 
     def emit(kind, xyz, shade):
         p = prims[kind]
@@ -1191,20 +1336,27 @@ def cmd_glb(args):
         for f in b.faces:
             if f.kind not in ("roof", "wall"):
                 continue
-            if f.holes:
-                holes_dropped += 1
             nrm = f.normal()
             # Same north-west key light the SVG writer uses, so the two agree.
             lam = max(0.0, nrm[0] * -0.45 + nrm[1] * -0.35 + nrm[2] * 0.82)
             shade = max(0, min(255, round((0.60 + 0.40 * lam) * 255)))
             kind = "monument" if monument else f.kind
-            enu = []
-            for x, y, z in f.ring:
-                lo, la = lut[(x, y)]
-                enu.append(((lo - lon0) * mlon, (la - lat0) * mlat, z - datum))
-            for a, c, d in _tri_fan_or_ear(enu):
+
+            def to_enu(r):
+                out = []
+                for x, y, z in r:
+                    lo, la = lut[(x, y)]
+                    out.append(((lo - lon0) * mlon, (la - lat0) * mlat, z - datum))
+                return out
+
+            enu = to_enu(f.ring)
+            enu_holes = [to_enu(h) for h in f.holes] if f.holes else None
+            if enu_holes:
+                holes_bridged += 1
+            poly, tris = _tri_fan_or_ear(enu, enu_holes)
+            for a, c, d in tris:
                 prims[kind]["idx"].extend(
-                    (emit(kind, enu[a], shade), emit(kind, enu[c], shade), emit(kind, enu[d], shade))
+                    (emit(kind, poly[a], shade), emit(kind, poly[c], shade), emit(kind, poly[d], shade))
                 )
 
     note = (f"Berlin LoD2 (dl-de/zero-2-0) + OSM (ODbL) for {len(hero_marks)} hero landmarks. "
@@ -1222,8 +1374,8 @@ def cmd_glb(args):
             print(f"  {k:9s} {len(prims[k]['idx'])//3:7,d} tris  {len(prims[k]['pos'])//3:7,d} verts")
     print(f"  {'total':9s} {tris:7,d} tris  {verts:7,d} verts")
     print(f"  origin {lon0:.6f},{lat0:.6f}  datum {datum:.2f} m")
-    if holes_dropped:
-        print(f"  ! {holes_dropped} face(s) had interior rings; holes not triangulated")
+    if holes_bridged:
+        print(f"  {holes_bridged} face(s) with interior rings, bridged and clipped")
     if ground_by_hero:
         pairs = ", ".join(f"{k.replace('hero-','')} {v:.1f}m" for k, v in ground_by_hero.items())
         print(f"  hero ground levels taken from displaced LoD2: {pairs}")
