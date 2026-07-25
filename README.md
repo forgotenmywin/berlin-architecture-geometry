@@ -1,0 +1,277 @@
+# Berlin LoD2 → isometric vectors
+
+A pipeline that pulls Berlin's official 3D building model and turns any landmark
+into layered axonometric SVG you can open straight in Illustrator.
+
+---
+
+## The data source
+
+**3D-Gebäudemodelle im Level of Detail 2 (LoD2)**, Senatsverwaltung für
+Stadtentwicklung, Bauen und Wohnen.
+
+| | |
+|---|---|
+| Feed | `https://gdi.berlin.de/data/a_lod2/atom/` |
+| Format | CityGML 1.0 (AdV profile), one `.xml` per tile inside a `.zip` |
+| Tiling | 1 × 1 km, named `LoD2_{easting_km}_{northing_km}.zip` |
+| CRS | EPSG:25833 — ETRS89 / UTM zone 33N, heights in DHHN2016 NH (metres, absolute) |
+| Coverage | all of Berlin, ~550,000 buildings |
+| Last refreshed | June 2026 |
+| Licence | **Datenlizenz Deutschland – Zero – 2.0** |
+
+That licence matters for illustration work: it's the German public-domain
+equivalent. No attribution legally required, commercial use fine, no share-alike.
+Credit it anyway if you feel like it, but you're not obliged.
+
+Footprints come from the cadastre, so they're survey-accurate. Roofs are
+"generalised standard forms" — real pitched/hipped/mansard/domed geometry, but
+simplified. **Read the caveat at the bottom before you commit to a subject.**
+
+---
+
+## Setup
+
+```bash
+pip install -r requirements.txt      # just pyproj
+```
+
+## Use
+
+```bash
+python3 lod2.py tiles                          # which tiles do I need? (no download)
+python3 lod2.py fetch                          # cache them into data/tiles/
+python3 lod2.py build                          # SVGs for every landmark
+python3 lod2.py build --only fernsehturm       # or just one
+python3 lod2.py probe --only reichstag         # heights + roof forms, no output files
+python3 lod2.py find --near 52.4986,13.3814   # locate a building by geometry
+```
+
+`build` implies `fetch`, so you can skip straight to it. Tiles are cached, so
+re-running with different camera settings costs nothing.
+
+### Camera
+
+```bash
+python3 lod2.py build --preset true-iso        # default: equal foreshortening, 45°/35.264°
+python3 lod2.py build --preset illustrator     # 45°/30°, matches AI's isometric SSR
+python3 lod2.py build --preset pixel-2to1      # 45°/26.565°, clean 2:1 slopes
+python3 lod2.py build --preset planometric     # 45°/45°, architectural "military" view
+python3 lod2.py build --preset low-oblique     # 45°/15°, dramatic and streetish
+
+python3 lod2.py build --azimuth 200 --elevation 22   # or set it by hand
+```
+
+`--azimuth` is a compass rotation (0 = looking north, 45 = the classic
+three-quarter). `--elevation` is how far above the horizon the camera sits.
+It's a parallel projection throughout — no perspective, no vanishing points,
+which is what makes the output tileable and rescalable.
+
+### Look
+
+```bash
+--outline                  # line art only, no fills
+--stroke "" --layers type  # flat fills, no strokes
+--stroke-width 0.25
+--width-px 2400            # output width; geometry is scaled to fit
+--keep-ground              # include ground slabs (off by default — invisible from above)
+--min-height 0             # keep sub-2 m clutter (kiosks, canopies) that's filtered by default
+--flatten                  # sit every building on y=0 instead of preserving terrain
+--obj                      # also write .obj for Blender / C4D / Rhino
+```
+
+### Layers — the one real trade-off
+
+`--layers type` (default) gives you three Illustrator layers: `Roofs`, `Walls`,
+`Ground`. Tidy, easy to restyle en masse. Occlusion is correct *within* each
+building, but across buildings a tall wall can wrongly sit beneath a shorter
+neighbour's roof.
+
+`--layers depth` gives one group per building, painter's-algorithm ordered.
+Occlusion is correct everywhere; you get a lot more layers to manage.
+
+Start with `type`. Switch to `depth` if you see a building punching through
+another one.
+
+---
+
+## What you get
+
+```
+out/
+  fernsehturm.svg          layered axonometric, ready for Illustrator
+  fernsehturm.obj          same geometry in 3D (with --obj)
+  buildings.csv            manifest: heights, roof forms, footprints, face counts
+data/tiles/
+  LoD2_33_392_5820_1_BE.xml    the raw CityGML — yours to re-process however
+```
+
+Back-face culling and depth sorting happen before export, so you're not opening
+a file with 3× the paths you can see. Walls are tonally separated by orientation
+so planes read apart immediately; override all of it in Illustrator.
+
+`buildings.csv` is worth a look before you draw. `roof_form` tells you what
+you're getting (`dome`, `mansard`, `gable`, `barrel`, `spire`, `flat`…) and
+`faces` tells you how much geometry there is — a 500-face building is richly
+modelled, a 6-face one is a shoebox.
+
+---
+
+## Adding your own subjects
+
+Edit `landmarks.json`:
+
+```json
+{ "id": "my-building", "name": "Something", "lat": 52.5, "lon": 13.4, "radius_m": 80 }
+```
+
+`radius_m` is how much context to pull in. 0–40 gets you the building nearly
+alone; 80–150 gets it with neighbours; 200+ gets a streetscape. Any building
+with a single vertex inside the disc is included whole — nothing gets sliced.
+
+Coordinates: right-click in Google Maps or OpenStreetMap and copy the lat/lon.
+The script handles WGS84 → UTM33N.
+
+If a new coordinate returns nothing, or returns the wrong thing, use `find` to
+hunt by geometric signature instead — it works entirely off the cached tiles,
+no geocoder involved:
+
+```bash
+python3 lod2.py find --near 52.4817,13.3556 --radius 300 --min-height 25
+python3 lod2.py find --near 52.5137,13.3928 --radius 200 --roof dome
+python3 lod2.py find --near 52.5,13.4 --radius 500 --min-footprint 80
+```
+
+It prints each match's height, footprint, roof form, distance and its own
+lat/lon — so you paste the corrected coordinate straight back into
+`landmarks.json`. This is how the entries in there were checked.
+
+**Most freestanding monuments aren't in this dataset.** It's derived from the
+cadastre, so anything without a building record simply isn't there. Confirmed
+absent: Brandenburger Tor, Siegessäule. Expect the same for Molecule Man and
+the Treptow memorial. Towers built *as buildings* are present and often
+excellent — Fernsehturm 229 m, Funkturm 130 m.
+
+**The Holocaust Memorial is the exception — and it's spectacular.** Every
+stele is modelled individually: 1,928 of them within 90 m of the centre, each
+a ~2.4 m² footprint between 2.0 and 7.5 m tall, tracking the real undulation
+of Eisenman's field. Nothing else in the extract comes close to that footprint
+size, so a `footprint_m2` threshold cleanly separates the stelae from actual
+buildings — everything else has a median footprint of 196 m².
+
+---
+
+## The caveat: LoD2 fidelity is wildly uneven
+
+This is the thing to know before you pick subjects. Some buildings are modelled
+beautifully; some monuments are boxes.
+
+**Came out excellent** — Fernsehturm (229 m: shaft, sphere and antenna stub, 837
+faces), both Gendarmenmarkt domes with drums and lanterns, the Philharmonie's
+folded tent roof, the Jüdisches Museum's Libeskind zigzag, Hauptbahnhof's curved
+train shed, the Shell-Haus's serpentine stepped facade, Rotes Rathaus with
+courtyards and spire, the Gasometer Schöneberg frame, the Karl-Marx-Allee blocks.
+
+**Came out as a box** — Berliner Dom: correct 96 × 100 m articulated footprint,
+flat roof at 43 m, dome entirely absent (real dome tops out at 98 m). Reichstag:
+exact 101 × 140 m footprint, flat at 28 m, Foster dome absent. Haus der Kulturen
+der Welt: the catenary roof flattened to a slab.
+
+There's no pattern to predict it from, so check before you invest drawing time.
+
+Diagnose before you draw:
+
+```bash
+python3 lod2.py probe --only berliner-dom
+```
+
+If `geom` is far below `height`, the model has been generalised. If both are
+suspiciously low for a building you know is tall, the survey itself truncated
+it — that's the Reichstag case, and no amount of parsing will recover it.
+
+For those, the built-in fallback is OSM — see below. Failing that, the
+**Berlin 3D Downloadportal** (<https://download-berlin3d.virtualcitymap.de/>)
+serves genuine LoD3 models and a textured photogrammetric mesh for selected
+landmarks. Interactive picker, no bulk API, six export formats.
+
+---
+
+## Sources: `--source lod2 | osm | both`
+
+`lod2.py` reads two geometry sources. Set `"source"` per landmark, or
+`--source` for a whole run.
+
+| | Strength | Weakness |
+|---|---|---|
+| `lod2` (default) | Survey-accurate footprints, real roof forms, all ~550,000 buildings | Generalises a handful of landmarks into slabs |
+| `osm` | Exact where the community cared — full cupolas, `min_height`, `roof:shape` | Almost nothing outside the famous buildings |
+| `both` | LoD2 body + OSM detail | Overlapping geometry; needs `base_z_m` |
+
+Coverage is the inverse of what you'd guess. **Measured across the
+Gendarmenmarkt and Museumsinsel subjects:**
+
+- Deutscher Dom — LoD2 gives 63 m and **539 faces**: drum, colonnade, lantern.
+  OSM has no heights at all. Use LoD2.
+- Französischer Dom — LoD2 gives 61 m and **494 faces**. OSM has no heights.
+  Use LoD2.
+- Berliner Dom — LoD2 gives a **flat 43 m slab**. OSM has 40 `building:part`
+  solids with real cupolas reaching 82 m. Use `both`.
+
+```bash
+python3 lod2.py --only berliner-dom --source both build --obj
+```
+
+**`base_z_m` matters when mixing.** OSM heights are metres above ground; LoD2
+is absolute DHHN2016. Without it the OSM parts sit ~32 m underground. Probe the
+LoD2 base and put it in the landmark:
+
+```json
+{ "id": "berliner-dom", "source": "both", "base_z_m": 32.3, ... }
+```
+
+Roof shapes understood: `dome`, `onion`, `pyramidal`, `hipped`, `cone`.
+Anything else is drawn flat, and the run prints what it approximated. OSM
+extracts cache in `data/osm/`.
+
+### Reading `probe` output
+
+`measuredHeight` is not a reliable fidelity signal. The Französischer Dom
+reports 23.92 m while its geometry is 61.36 m — the attribute describes the
+building body, not the tower.
+
+- `geom` far **below** `height` → generalised, detail lost. (Berliner Dom.)
+- `geom` far **above** `height` → a tower or spire that *is* modelled. Good.
+- Face count is the better tell: 500 faces is richly modelled, 67 is a box.
+
+---
+
+## What's already built
+
+`out/` contains 18 landmarks rendered at `--preset true-iso`, plus `.obj`
+versions and a 423-building manifest. `data/tiles/` has 26 tiles cached (769 MB),
+covering central Mitte, Tiergarten, Charlottenburg, Schöneberg and Friedrichshain.
+
+The remaining 15 landmarks in `landmarks.json` — Olympiastadion, Tempelhof,
+Schloss Charlottenburg, ICC, Velodrom, Treptowers, Corbusierhaus, Mäusebunker,
+Bierpinsel and the rest — need another ~30 tiles, roughly 1.5 GB. Run
+`python3 lod2.py build --obj` and leave it going; it picks up where the cache
+leaves off.
+
+## Notes
+
+- Parsing is fast: ~0.4 s per tile, streamed, so memory stays flat.
+- Tiles are 3–57 MB unzipped. The cache adds up — 26 tiles is ~770 MB.
+- Geometry lives in the `boundedBy` surfaces (`WallSurface` / `RoofSurface` /
+  `GroundSurface`); `lod2Solid` only xlinks to them. Handy if you write your own
+  parser.
+- `BuildingPart` geometry is folded into its parent building, so consolidated
+  complexes come through whole.
+- The feed only publishes tiles containing buildings. Water, forest and grid
+  edges legitimately 404 — the script notes them and moves on.
+
+## Sources
+
+- [3D-Gebäudemodelle im Level of Detail 2 (LoD 2) — Berlin Open Data](https://daten.berlin.de/datensaetze/3d-gebaudemodelle-im-level-of-detail-2-lod-2-3c7c49af)
+- [ATOM download service](https://gdi.berlin.de/data/a_lod2/atom/)
+- [Datenlizenz Deutschland Zero 2.0](https://www.govdata.de/dl-de/zero-2-0)
+- [Berlin 3D Downloadportal (LoD3 / textured)](https://download-berlin3d.virtualcitymap.de/)

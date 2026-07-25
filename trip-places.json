@@ -1,0 +1,208 @@
+{
+  "_comment": "Generated from berlin-trip.spa src/data/berlinPlaces.ts — only stops inside the cached tile set. radius_m 90 pulls each stop plus its immediate block.",
+  "landmarks": [
+    {
+      "id": "hilton",
+      "name": "Hilton Berlin (Gendarmenmarkt)",
+      "lat": 52.5122,
+      "lon": 13.3929,
+      "radius_m": 90
+    },
+    {
+      "id": "babbel",
+      "name": "Babbel office (Friedrichshain)",
+      "lat": 52.5121,
+      "lon": 13.4307,
+      "radius_m": 90
+    },
+    {
+      "id": "humboldt-uni",
+      "name": "Humboldt University",
+      "lat": 52.5179,
+      "lon": 13.3937,
+      "radius_m": 90
+    },
+    {
+      "id": "bebelplatz",
+      "name": "Bebelplatz (book-burning memorial)",
+      "lat": 52.5165,
+      "lon": 13.3939,
+      "radius_m": 90
+    },
+    {
+      "id": "neue-wache",
+      "name": "Neue Wache",
+      "lat": 52.5179,
+      "lon": 13.3955,
+      "radius_m": 90
+    },
+    {
+      "id": "museum-island",
+      "name": "Museum Island / Bode-Museum",
+      "lat": 52.522,
+      "lon": 13.3944,
+      "radius_m": 90
+    },
+    {
+      "id": "humboldt-forum",
+      "name": "Humboldt Forum",
+      "lat": 52.5173,
+      "lon": 13.4017,
+      "radius_m": 90
+    },
+    {
+      "id": "dhm",
+      "name": "German Historical Museum",
+      "lat": 52.5186,
+      "lon": 13.3964,
+      "radius_m": 90
+    },
+    {
+      "id": "staatsbibliothek",
+      "name": "Staatsbibliothek (Potsdamer Str.)",
+      "lat": 52.5076,
+      "lon": 13.3708,
+      "radius_m": 90
+    },
+    {
+      "id": "reichstag",
+      "name": "Reichstag",
+      "lat": 52.5186,
+      "lon": 13.3762,
+      "radius_m": 90
+    },
+    {
+      "id": "brandenburg-gate",
+      "name": "Brandenburg Gate",
+      "lat": 52.5163,
+      "lon": 13.3777,
+      "radius_m": 90
+    },
+    {
+      "id": "holocaust-memorial",
+      "name": "Memorial to the Murdered Jews of Europe",
+      "lat": 52.5139,
+      "lon": 13.3787,
+      "radius_m": 90
+    },
+    {
+      "id": "fuhrerbunker",
+      "name": "Führerbunker site",
+      "lat": 52.5125,
+      "lon": 13.381,
+      "radius_m": 90
+    },
+    {
+      "id": "topography-terror",
+      "name": "Topography of Terror",
+      "lat": 52.5067,
+      "lon": 13.3837,
+      "radius_m": 90
+    },
+    {
+      "id": "checkpoint-charlie",
+      "name": "Checkpoint Charlie",
+      "lat": 52.5074,
+      "lon": 13.3904,
+      "radius_m": 90
+    },
+    {
+      "id": "jewish-museum",
+      "name": "Jewish Museum",
+      "lat": 52.5023,
+      "lon": 13.3954,
+      "radius_m": 90
+    },
+    {
+      "id": "resistance-memorial",
+      "name": "German Resistance Memorial Center",
+      "lat": 52.5077,
+      "lon": 13.3629,
+      "radius_m": 90
+    },
+    {
+      "id": "luiban",
+      "name": "LUIBAN Papeterie",
+      "lat": 52.5257,
+      "lon": 13.4111,
+      "radius_m": 90
+    },
+    {
+      "id": "rsvp",
+      "name": "R.S.V.P. Papier",
+      "lat": 52.5274,
+      "lon": 13.4051,
+      "radius_m": 90
+    },
+    {
+      "id": "hauptbahnhof",
+      "name": "Berlin Hauptbahnhof",
+      "lat": 52.5251,
+      "lon": 13.3694,
+      "radius_m": 90
+    },
+    {
+      "id": "stadtmitte",
+      "name": "Stadtmitte (U2/U6)",
+      "lat": 52.5108,
+      "lon": 13.3897,
+      "radius_m": 90
+    },
+    {
+      "id": "alexanderplatz",
+      "name": "Alexanderplatz",
+      "lat": 52.5219,
+      "lon": 13.4132,
+      "radius_m": 90
+    },
+    {
+      "id": "dussmann",
+      "name": "Dussmann das KulturKaufhaus",
+      "lat": 52.5189,
+      "lon": 13.3884,
+      "radius_m": 90
+    },
+    {
+      "id": "gendarmenmarkt",
+      "name": "Gendarmenmarkt",
+      "lat": 52.5132,
+      "lon": 13.3925,
+      "radius_m": 90
+    },
+    {
+      "id": "neues-museum",
+      "name": "Neues Museum",
+      "lat": 52.5201,
+      "lon": 13.3976,
+      "radius_m": 90
+    },
+    {
+      "id": "hamburger-bahnhof",
+      "name": "Hamburger Bahnhof (museum)",
+      "lat": 52.5277,
+      "lon": 13.3717,
+      "radius_m": 90
+    },
+    {
+      "id": "berlinische-galerie",
+      "name": "Berlinische Galerie",
+      "lat": 52.5046,
+      "lon": 13.4007,
+      "radius_m": 90
+    },
+    {
+      "id": "hegel-house",
+      "name": "Hegel",
+      "lat": 52.5203,
+      "lon": 13.3958,
+      "radius_m": 90
+    },
+    {
+      "id": "staatsbibliothek-unter-den-linden",
+      "name": "Staatsbibliothek zu Berlin — Handschriftenabteilung (Unter den Linden)",
+      "lat": 52.5168,
+      "lon": 13.3941,
+      "radius_m": 90
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+# Everything here is re-fetchable. `lod2.py fetch` (or `build`) re-downloads
+# the tiles; the OSM extracts re-fetch on demand. Between them they are ~1.6 GB,
+# which does not belong in git.
+
+# Source archives downloaded from the LoD2 ATOM feed (~743 MB)
+*.zip
+*.crdownload
+
+# Cached CityGML tiles (~886 MB) and OSM extracts (~17 MB)
+data/tiles/
+data/osm/
+
+# Reference photography and archival scans (~103 MB). Sources are documented
+# in PLAN.md §3 — re-downloadable, and the Neues Museum plate volume alone is
+# 97 MB.
+*.jpg
+*.jpeg
+*.png
+*.pdf
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+.DS_Store

@@ -1,0 +1,71 @@
+{
+  "_comment": "The seven subjects from docs/PLAN.md, for fidelity probing.",
+  "landmarks": [
+    {
+      "id": "gendarmenmarkt",
+      "name": "Gendarmenmarkt ensemble",
+      "lat": 52.5137,
+      "lon": 13.3928,
+      "radius_m": 130
+    },
+    {
+      "id": "konzerthaus",
+      "name": "Konzerthaus (Schauspielhaus)",
+      "lat": 52.51385,
+      "lon": 13.39203,
+      "radius_m": 55
+    },
+    {
+      "id": "deutscher-dom",
+      "name": "Deutscher Dom",
+      "lat": 52.51295,
+      "lon": 13.39285,
+      "radius_m": 45
+    },
+    {
+      "id": "franzoesischer-dom",
+      "name": "Franzoesischer Dom",
+      "lat": 52.51462,
+      "lon": 13.39285,
+      "radius_m": 45
+    },
+    {
+      "id": "humboldt-uni",
+      "name": "Humboldt-Universitaet",
+      "lat": 52.5179,
+      "lon": 13.3937,
+      "radius_m": 90
+    },
+    {
+      "id": "neues-museum",
+      "name": "Neues Museum",
+      "lat": 52.5199,
+      "lon": 13.3977,
+      "radius_m": 70
+    },
+    {
+      "id": "berliner-dom",
+      "name": "Berliner Dom",
+      "lat": 52.5192,
+      "lon": 13.4011,
+      "radius_m": 70,
+      "source": "osm",
+      "base_z_m": 32.3,
+      "_note": "LoD2 flattens this to a 43 m slab; OSM has the full cupolas. base_z_m lifts OSM ground-relative heights onto the LoD2 DHHN2016 datum so --source both lines up."
+    },
+    {
+      "id": "hegel-denkmal",
+      "name": "Hegel-Denkmal (Hegelplatz)",
+      "lat": 52.5182,
+      "lon": 13.3907,
+      "radius_m": 40
+    },
+    {
+      "id": "hegel-grave",
+      "name": "Hegel + Fichte graves",
+      "lat": 52.5281,
+      "lon": 13.3841,
+      "radius_m": 70
+    }
+  ]
+}

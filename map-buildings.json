@@ -1,0 +1,280 @@
+{
+  "_comment": "Trip stops (LoD2) plus hero landmarks pulled from OSM Simple 3D Buildings. Inside a hero disc OSM replaces LoD2 so the flattened box is not drawn through the dome.",
+  "landmarks": [
+    {
+      "id": "hilton",
+      "name": "Hilton Berlin (Gendarmenmarkt)",
+      "lat": 52.5122,
+      "lon": 13.3929,
+      "radius_m": 90
+    },
+    {
+      "id": "babbel",
+      "name": "Babbel office (Friedrichshain)",
+      "lat": 52.5121,
+      "lon": 13.4307,
+      "radius_m": 90
+    },
+    {
+      "id": "humboldt-uni",
+      "name": "Humboldt University",
+      "lat": 52.5179,
+      "lon": 13.3937,
+      "radius_m": 90
+    },
+    {
+      "id": "bebelplatz",
+      "name": "Bebelplatz (book-burning memorial)",
+      "lat": 52.5165,
+      "lon": 13.3939,
+      "radius_m": 90
+    },
+    {
+      "id": "neue-wache",
+      "name": "Neue Wache",
+      "lat": 52.5179,
+      "lon": 13.3955,
+      "radius_m": 90
+    },
+    {
+      "id": "museum-island",
+      "name": "Museum Island / Bode-Museum",
+      "lat": 52.522,
+      "lon": 13.3944,
+      "radius_m": 90
+    },
+    {
+      "id": "humboldt-forum",
+      "name": "Humboldt Forum",
+      "lat": 52.5173,
+      "lon": 13.4017,
+      "radius_m": 90
+    },
+    {
+      "id": "dhm",
+      "name": "German Historical Museum",
+      "lat": 52.5186,
+      "lon": 13.3964,
+      "radius_m": 90
+    },
+    {
+      "id": "staatsbibliothek",
+      "name": "Staatsbibliothek (Potsdamer Str.)",
+      "lat": 52.5076,
+      "lon": 13.3708,
+      "radius_m": 90
+    },
+    {
+      "id": "reichstag",
+      "name": "Reichstag",
+      "lat": 52.5186,
+      "lon": 13.3762,
+      "radius_m": 90
+    },
+    {
+      "id": "brandenburg-gate",
+      "name": "Brandenburg Gate",
+      "lat": 52.5163,
+      "lon": 13.3777,
+      "radius_m": 90
+    },
+    {
+      "id": "holocaust-memorial",
+      "name": "Memorial to the Murdered Jews of Europe",
+      "lat": 52.5139,
+      "lon": 13.3787,
+      "radius_m": 90
+    },
+    {
+      "id": "fuhrerbunker",
+      "name": "Führerbunker site",
+      "lat": 52.5125,
+      "lon": 13.381,
+      "radius_m": 90
+    },
+    {
+      "id": "topography-terror",
+      "name": "Topography of Terror",
+      "lat": 52.5067,
+      "lon": 13.3837,
+      "radius_m": 90
+    },
+    {
+      "id": "checkpoint-charlie",
+      "name": "Checkpoint Charlie",
+      "lat": 52.5074,
+      "lon": 13.3904,
+      "radius_m": 90
+    },
+    {
+      "id": "jewish-museum",
+      "name": "Jewish Museum",
+      "lat": 52.5023,
+      "lon": 13.3954,
+      "radius_m": 90
+    },
+    {
+      "id": "resistance-memorial",
+      "name": "German Resistance Memorial Center",
+      "lat": 52.5077,
+      "lon": 13.3629,
+      "radius_m": 90
+    },
+    {
+      "id": "luiban",
+      "name": "LUIBAN Papeterie",
+      "lat": 52.5257,
+      "lon": 13.4111,
+      "radius_m": 90
+    },
+    {
+      "id": "rsvp",
+      "name": "R.S.V.P. Papier",
+      "lat": 52.5274,
+      "lon": 13.4051,
+      "radius_m": 90
+    },
+    {
+      "id": "hauptbahnhof",
+      "name": "Berlin Hauptbahnhof",
+      "lat": 52.5251,
+      "lon": 13.3694,
+      "radius_m": 90
+    },
+    {
+      "id": "stadtmitte",
+      "name": "Stadtmitte (U2/U6)",
+      "lat": 52.5108,
+      "lon": 13.3897,
+      "radius_m": 90
+    },
+    {
+      "id": "alexanderplatz",
+      "name": "Alexanderplatz",
+      "lat": 52.5219,
+      "lon": 13.4132,
+      "radius_m": 90
+    },
+    {
+      "id": "dussmann",
+      "name": "Dussmann das KulturKaufhaus",
+      "lat": 52.5189,
+      "lon": 13.3884,
+      "radius_m": 90
+    },
+    {
+      "id": "gendarmenmarkt",
+      "name": "Gendarmenmarkt",
+      "lat": 52.5132,
+      "lon": 13.3925,
+      "radius_m": 90
+    },
+    {
+      "id": "neues-museum",
+      "name": "Neues Museum",
+      "lat": 52.5201,
+      "lon": 13.3976,
+      "radius_m": 90
+    },
+    {
+      "id": "hamburger-bahnhof",
+      "name": "Hamburger Bahnhof (museum)",
+      "lat": 52.5277,
+      "lon": 13.3717,
+      "radius_m": 90
+    },
+    {
+      "id": "berlinische-galerie",
+      "name": "Berlinische Galerie",
+      "lat": 52.5046,
+      "lon": 13.4007,
+      "radius_m": 90
+    },
+    {
+      "id": "hegel-house",
+      "name": "Hegel",
+      "lat": 52.5203,
+      "lon": 13.3958,
+      "radius_m": 90
+    },
+    {
+      "id": "staatsbibliothek-unter-den-linden",
+      "name": "Staatsbibliothek zu Berlin — Handschriftenabteilung (Unter den Linden)",
+      "lat": 52.5168,
+      "lon": 13.3941,
+      "radius_m": 90
+    },
+    {
+      "id": "hero-brandenburger-tor",
+      "name": "Brandenburger Tor",
+      "lat": 52.516275,
+      "lon": 13.377704,
+      "radius_m": 55,
+      "_why": "absent from LoD2 entirely (no cadastral record); OSM has 88 parts",
+      "source": "osm"
+    },
+    {
+      "id": "hero-reichstag",
+      "name": "Reichstag",
+      "lat": 52.518623,
+      "lon": 13.376198,
+      "radius_m": 85,
+      "_why": "LoD2 flattens it; OSM has the Foster dome as 5 dome parts",
+      "source": "osm"
+    },
+    {
+      "id": "hero-berliner-dom",
+      "name": "Berliner Dom",
+      "lat": 52.51924,
+      "lon": 13.40108,
+      "radius_m": 70,
+      "_why": "LoD2 gives a flat 43 m slab vs a real 98 m; OSM has 40 parts with full cupolas",
+      "source": "osm"
+    },
+    {
+      "id": "hero-neues-museum",
+      "name": "Neues Museum + Museumsinsel",
+      "lat": 52.52,
+      "lon": 13.3977,
+      "radius_m": 95,
+      "_why": "OSM adds domes, hipped and gabled roofs across the island",
+      "source": "osm"
+    },
+    {
+      "id": "hero-dhm",
+      "name": "Deutsches Historisches Museum",
+      "lat": 52.5181,
+      "lon": 13.3969,
+      "radius_m": 65,
+      "_why": "dome + hipped + gabled parts",
+      "source": "osm"
+    },
+    {
+      "id": "hero-bebelplatz",
+      "name": "Bebelplatz / St. Hedwig's",
+      "lat": 52.5165,
+      "lon": 13.3939,
+      "radius_m": 70,
+      "_why": "St. Hedwig's dome",
+      "source": "osm"
+    },
+    {
+      "id": "hero-staatsbibliothek",
+      "name": "Staatsbibliothek Unter den Linden",
+      "lat": 52.5175,
+      "lon": 13.3894,
+      "radius_m": 80,
+      "_why": "33 mapped parts",
+      "source": "osm"
+    },
+    {
+      "id": "hero-resistance-memorial",
+      "name": "Gedenkstaette Deutscher Widerstand",
+      "lat": 52.5069,
+      "lon": 13.3617,
+      "radius_m": 70,
+      "_why": "37 parts, 13 gabled",
+      "source": "osm"
+    }
+  ]
+}

@@ -1,0 +1,239 @@
+{
+  "_comment": "Edit freely. radius_m = how much context around the point to include. 0-40 = the building alone, 80-150 = building plus neighbours. Coordinates are WGS84 (lat, lon) - grab new ones by right-clicking in Google Maps or OpenStreetMap.",
+  "_not_in_lod2": "Most freestanding monuments are absent from this dataset - it is derived from the cadastre, so if a structure has no building record it is not there. Verified missing: Brandenburger Tor, Siegessaeule. Also expect nothing for Molecule Man or the Soviet memorial at Treptow. Towers built as buildings ARE present (Fernsehturm 229 m, Funkturm 130 m). EXCEPTION: the Holocaust Memorial IS present, and in detail - 1928 stelae modelled individually, each ~2.4 m2 and 2.0-7.5 m tall. Filter on footprint_m2 to tell stelae from buildings.",
+  "_verified": "Coordinates below were checked against the actual geometry with 'lod2.py find'. If you add your own and get nothing back, run: python3 lod2.py find --near LAT,LON --radius 300 --min-height 15",
+  "landmarks": [
+    {
+      "id": "fernsehturm",
+      "name": "Fernsehturm",
+      "lat": 52.520818,
+      "lon": 13.409419,
+      "radius_m": 70
+    },
+    {
+      "id": "berliner-dom",
+      "name": "Berliner Dom",
+      "lat": 52.519167,
+      "lon": 13.401111,
+      "radius_m": 80
+    },
+    {
+      "id": "reichstag",
+      "name": "Reichstag",
+      "lat": 52.518611,
+      "lon": 13.376111,
+      "radius_m": 90
+    },
+    {
+      "id": "rotes-rathaus",
+      "name": "Rotes Rathaus",
+      "lat": 52.518333,
+      "lon": 13.408333,
+      "radius_m": 70
+    },
+    {
+      "id": "hauptbahnhof",
+      "name": "Hauptbahnhof",
+      "lat": 52.525,
+      "lon": 13.369444,
+      "radius_m": 140
+    },
+    {
+      "id": "gendarmenmarkt",
+      "name": "Gendarmenmarkt (both domes)",
+      "lat": 52.5137,
+      "lon": 13.3928,
+      "radius_m": 120
+    },
+    {
+      "id": "museumsinsel",
+      "name": "Museumsinsel",
+      "lat": 52.5205,
+      "lon": 13.3965,
+      "radius_m": 180
+    },
+    {
+      "id": "schloss-charlottenburg",
+      "name": "Schloss Charlottenburg",
+      "lat": 52.520833,
+      "lon": 13.295833,
+      "radius_m": 160
+    },
+    {
+      "id": "gedaechtniskirche",
+      "name": "Kaiser-Wilhelm-Gedaechtniskirche",
+      "lat": 52.504722,
+      "lon": 13.335,
+      "radius_m": 70
+    },
+    {
+      "id": "funkturm",
+      "name": "Funkturm",
+      "lat": 52.504722,
+      "lon": 13.278611,
+      "radius_m": 60
+    },
+    {
+      "id": "haus-des-rundfunks",
+      "name": "Haus des Rundfunks",
+      "lat": 52.5058,
+      "lon": 13.2789,
+      "radius_m": 100
+    },
+    {
+      "id": "icc",
+      "name": "ICC Berlin",
+      "lat": 52.5053,
+      "lon": 13.2764,
+      "radius_m": 150
+    },
+    {
+      "id": "olympiastadion",
+      "name": "Olympiastadion",
+      "lat": 52.514722,
+      "lon": 13.239444,
+      "radius_m": 160
+    },
+    {
+      "id": "tempelhof",
+      "name": "Flughafen Tempelhof terminal",
+      "lat": 52.4825,
+      "lon": 13.3875,
+      "radius_m": 260
+    },
+    {
+      "id": "philharmonie",
+      "name": "Berliner Philharmonie",
+      "lat": 52.51,
+      "lon": 13.3697,
+      "radius_m": 90
+    },
+    {
+      "id": "neue-nationalgalerie",
+      "name": "Neue Nationalgalerie",
+      "lat": 52.5069,
+      "lon": 13.3675,
+      "radius_m": 70
+    },
+    {
+      "id": "shell-haus",
+      "name": "Shell-Haus",
+      "lat": 52.5076,
+      "lon": 13.3628,
+      "radius_m": 60
+    },
+    {
+      "id": "bauhaus-archiv",
+      "name": "Bauhaus-Archiv",
+      "lat": 52.5061,
+      "lon": 13.3536,
+      "radius_m": 60
+    },
+    {
+      "id": "hkw",
+      "name": "Haus der Kulturen der Welt",
+      "lat": 52.5186,
+      "lon": 13.3661,
+      "radius_m": 70
+    },
+    {
+      "id": "schloss-bellevue",
+      "name": "Schloss Bellevue",
+      "lat": 52.518889,
+      "lon": 13.352778,
+      "radius_m": 80
+    },
+    {
+      "id": "jewish-museum",
+      "name": "Juedisches Museum",
+      "lat": 52.5019,
+      "lon": 13.3953,
+      "radius_m": 90
+    },
+    {
+      "id": "karl-marx-allee",
+      "name": "Karl-Marx-Allee (Kino Intl / Cafe Moskau)",
+      "lat": 52.5195,
+      "lon": 13.423,
+      "radius_m": 200
+    },
+    {
+      "id": "haus-des-lehrers",
+      "name": "Haus des Lehrers",
+      "lat": 52.5203,
+      "lon": 13.4147,
+      "radius_m": 60
+    },
+    {
+      "id": "park-inn",
+      "name": "Park Inn Alexanderplatz",
+      "lat": 52.5228,
+      "lon": 13.4128,
+      "radius_m": 70
+    },
+    {
+      "id": "velodrom",
+      "name": "Velodrom",
+      "lat": 52.5289,
+      "lon": 13.4444,
+      "radius_m": 110
+    },
+    {
+      "id": "oberbaumbruecke",
+      "name": "Oberbaumbruecke surroundings",
+      "lat": 52.501944,
+      "lon": 13.446667,
+      "radius_m": 120
+    },
+    {
+      "id": "treptowers",
+      "name": "Treptowers",
+      "lat": 52.4919,
+      "lon": 13.4589,
+      "radius_m": 120
+    },
+    {
+      "id": "corbusierhaus",
+      "name": "Corbusierhaus",
+      "lat": 52.5111,
+      "lon": 13.2361,
+      "radius_m": 80
+    },
+    {
+      "id": "flakturm-humboldthain",
+      "name": "Flakturm Humboldthain",
+      "lat": 52.5464,
+      "lon": 13.3822,
+      "radius_m": 80
+    },
+    {
+      "id": "maeusebunker",
+      "name": "Maeusebunker",
+      "lat": 52.4394,
+      "lon": 13.3086,
+      "radius_m": 80
+    },
+    {
+      "id": "bierpinsel",
+      "name": "Bierpinsel",
+      "lat": 52.4569,
+      "lon": 13.3222,
+      "radius_m": 50
+    },
+    {
+      "id": "gasometer-schoeneberg",
+      "name": "Gasometer Schoeneberg",
+      "lat": 52.481388,
+      "lon": 13.35726,
+      "radius_m": 90
+    },
+    {
+      "id": "funkturm-detail",
+      "name": "Funkturm (tower alone)",
+      "lat": 52.505017,
+      "lon": 13.278193,
+      "radius_m": 30
+    }
+  ],
+  "_unverified": "Visually checked and confirmed good: fernsehturm, funkturm-detail, berliner-dom, reichstag, rotes-rathaus, hauptbahnhof, gendarmenmarkt, museumsinsel, philharmonie, neue-nationalgalerie, shell-haus, hkw, jewish-museum, karl-marx-allee, haus-des-lehrers, park-inn, gasometer-schoeneberg. The rest are plausible centre points I did not eyeball - run 'probe' on them before you commit to drawing. Tempodrom was removed: its tent is not identifiable in LoD2."
+}
