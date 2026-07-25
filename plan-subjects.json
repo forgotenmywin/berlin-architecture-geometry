@@ -56,9 +56,10 @@
     {
       "id": "hegel-denkmal",
       "name": "Hegel-Denkmal (Hegelplatz)",
-      "lat": 52.5182,
-      "lon": 13.3907,
-      "radius_m": 40
+      "lat": 52.5193186,
+      "lon": 13.3936026,
+      "radius_m": 40,
+      "_note": "OSM node 1608998742 (tourism=artwork). Earlier coordinate here was ~220 m off. Not in LoD2 - no cadastral record."
     },
     {
       "id": "hegel-grave",

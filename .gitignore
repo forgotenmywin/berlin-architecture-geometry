@@ -18,6 +18,10 @@ data/osm/
 *.png
 *.pdf
 
+# Downloaded reference geometry — museum scans and the like. All re-downloadable
+# from the URLs in 90_credits.md; the Nofretete OBJ alone is 845 MB.
+reference/
+
 __pycache__/
 *.pyc
 .venv/
