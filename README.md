@@ -247,6 +247,57 @@ minimum-area long axis; 29 of the 35 ridge-family parts carry one of the two.
 
 ---
 
+## `mesh2paper.py` — monuments the building datasets don't have
+
+Some subjects have no cadastral record at all. The Hegel-Denkmal is a 3.3 m
+bust on a pedestal, so LoD2 has nothing and OSM maps it as a bare point;
+Nofretete is a 49 cm object indoors. For those the only geometry available is
+a photogrammetry or structured-light scan, and scans are the wrong shape and
+size for a map — the Nefertiti one is 6.4 M triangles and 845 MB.
+
+```bash
+# GLB in, GLB + hover sprite out
+python3 mesh2paper.py scan.glb out/hegel-denkmal.glb --target-tris 4000 \
+  --crop-radius 1.15 --name hegel-denkmal --credit "$CREDIT" \
+  --svg out/hegel-denkmal.svg --svg-width 200 --svg-tris 700
+
+# OBJ in — museum scans usually ship OBJ, and rarely in metres
+python3 mesh2paper.py scan.obj out/nofretete.glb --target-tris 4000 \
+  --height 0.49 --name nofretete --credit "$CREDIT" \
+  --svg out/nofretete.svg --svg-azimuth 75 --svg-width 200 --svg-tris 900
+```
+
+Output matches what `glb` writes — local metres, Z up, one unlit primitive,
+`COLOR_0` carrying only a shading factor — so the client needs no second code
+path.
+
+Decimation is **vertex clustering**, not quadric simplification: meshoptimizer
+refuses to collapse across the disconnected components scans are full of and
+stalls around 45,000 triangles however hard you push `--ratio`. Clustering
+snaps to a grid, welds, and drops what collapsed. The one thing that matters
+is where the surviving vertex goes: it must be the **mean of the vertices that
+fell in the cell**, not the cell centre. Snapping to centres is invisible on a
+building, whose faces are axis-aligned planes already, and ruinous on anything
+organic — the first pass at Nefertiti came out as a heap of voxels.
+
+An OBJ is read in two passes and snapped to a 512³ grid as the faces stream in,
+which is what keeps 6.4 M triangles from becoming several GB of Python tuples.
+OBJ carries no up-axis convention, so the tallest extent is assumed vertical;
+`--up` overrides it. Worth checking against the object's real dimensions — for
+Nefertiti the three extents divided by the catalogue's 49.0 × 24.5 × 35.0 cm
+all landed on the same ~10.3 units/cm, which confirms the axis, confirms the
+scan is undistorted, and gives the scale. Sketchfab models are usually in
+metres; museum scans are not, so `--height` normalises them — without it the
+Nefertiti GLB claims a 489 m bust.
+
+`--svg` also emits a flat axonometric sprite. The map's default view loads no
+WebGL at all, so a monument that exists only as a mesh cannot appear there; a
+sprite can, at whatever size reads, at any zoom. `--svg-azimuth` defaults to
+the map's 45°, but spin it when the subject has a front worth showing — 75°
+for Nefertiti, which puts her three-quarters toward the viewer.
+
+---
+
 ## Sources: `--source lod2 | osm | both`
 
 `lod2.py` reads two geometry sources. Set `"source"` per landmark, or

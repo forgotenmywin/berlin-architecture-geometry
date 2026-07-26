@@ -41,9 +41,11 @@ Used for:
 
 ---
 
-## Reference material held locally, not shipped
+## Third-party scans, and the derivatives shipped from them
 
-Kept under `reference/` (gitignored — see the sizes below).
+The source scans are held under `reference/` or in scratch and are gitignored;
+what ships is a `mesh2paper.py` decimation of each, three to four orders of
+magnitude smaller and untextured.
 
 ### Bust of Nefertiti — 3D scan
 
@@ -72,17 +74,27 @@ would matter, and only if the claim holds.
 
 234 MB zipped / 845 MB unpacked OBJ. **6,421,238 faces, 3,210,620 vertices.**
 
-Not used in the web map: the bust is 49 cm tall, which is 0.9 px at the map's
-maximum zoom. Held for the Illustrator plate, where it can be drawn at any size.
+Shipped from it: `out/nofretete.svg` (900 triangles, 31 kB) — a flat
+axonometric sprite shown when you hover her pin, copied to
+`berlin-trip.spa/public/berlin/`. `out/nofretete.glb` (3,990 triangles) is
+written alongside it but **not** shipped to the app: the bust is 49 cm tall,
+which is 0.9 px even at the map's maximum zoom, so there is no scale at which
+a 3D Nofretete is worth the download. The full scan stays here for the
+Illustrator plate, where it can be drawn at any size.
 
-### Hegel Memorial — 3D scan (considered, not acquired)
+### Hegel Memorial — 3D scan
 
 "Hegel Memorial" by **VIMUNE**, Sketchfab, published 6 November 2021.
 Photogrammetry. **CC Attribution (CC BY 4.0).** 4M triangles / 2M vertices.
 <https://sketchfab.com/3d-models/hegel-memorial-4ffc023bc5854cb0b0748ac68628d8c2>
 
-Download is account-gated. Not fetched. Recorded here so the licence is on
-file if it is ever used.
+Fetched via the Sketchfab download API. The attribution string CC BY requires
+is carried in the `extras.credit` of every GLB derived from it, so it travels
+with the asset rather than living only here.
+
+Shipped from it: `out/hegel-denkmal.glb` (4,002 triangles; 77 kB after meshopt)
+for the 3D massing layer, and `out/hegel-denkmal.svg` (700 triangles, 25 kB)
+for the hover sprite.
 
 Subject: Hegel-Denkmal by Gustav Blaeser, cast at Lauchhammer, unveiled
 3 June 1871 — a bust with herm section on a tiered Muschelkalk pedestal, not a

@@ -115,6 +115,87 @@ def node_matrices(js):
     return out
 
 
+def obj_triangles(path: Path, up: str = "auto"):
+    """Read triangles straight out of a Wavefront OBJ.
+
+    Museum scans tend to ship OBJ rather than glTF — the SMB Nefertiti release
+    is an 845 MB one. Only `v` and `f` matter here; normals and texture
+    coordinates are dropped, since the output is flat-shaded anyway.
+
+    OBJ carries no up-axis convention. For a bust the tallest extent is the
+    one you want vertical, which is what `auto` picks; override with --up if a
+    scan disagrees.
+
+    Read in two passes and snap to a 512³ grid while reading the faces. The
+    Nefertiti scan is 6.4 M triangles; held as nested Python tuples that is
+    several GB, and every one of them is about to be thrown away by `cluster`
+    anyway. Snapping during the read caps the working set at the number of
+    occupied cells, which for a surface is tens of thousands.
+    """
+    from array import array
+
+    xs, ys, zs = array("d"), array("d"), array("d")
+    with path.open("r", errors="ignore") as fh:
+        for line in fh:
+            if line.startswith("v "):
+                _t, a, b, c = line.split()[:4]
+                xs.append(float(a))
+                ys.append(float(b))
+                zs.append(float(c))
+    n = len(xs)
+    if not n:
+        sys.exit(f"{path}: no vertices found")
+
+    lo = (min(xs), min(ys), min(zs))
+    spans = [max(xs) - lo[0], max(ys) - lo[1], max(zs) - lo[2]]
+    axis = {"x": 0, "y": 1, "z": 2}.get(up, spans.index(max(spans)))
+    cell = max(spans) / 512.0
+    cols = (xs, ys, zs)
+    # Reorder so the chosen axis is last, matching glTF's Y-up convention that
+    # the caller then rotates to Z-up.
+    rest = [i for i in range(3) if i != axis]
+    a0, aup, a1 = cols[rest[0]], cols[axis], cols[rest[1]]
+    l0, lup, l1 = lo[rest[0]], lo[axis], lo[rest[1]]
+
+    pts: dict[tuple[int, int, int], tuple[float, float, float]] = {}
+    seen: set[tuple] = set()
+    tris = []
+    raw = 0
+
+    def snap(i):
+        k = (int((a0[i] - l0) / cell), int((aup[i] - lup) / cell), int((a1[i] - l1) / cell))
+        p = pts.get(k)
+        if p is None:
+            p = pts[k] = ((k[0] + 0.5) * cell + l0, (k[1] + 0.5) * cell + lup,
+                          (k[2] + 0.5) * cell + l1)
+        return k, p
+
+    with path.open("r", errors="ignore") as fh:
+        for line in fh:
+            if not line.startswith("f "):
+                continue
+            # v, v/vt, v//vn and v/vt/vn all start with the vertex index.
+            idx = [int(p.split("/")[0]) for p in line.split()[1:]]
+            idx = [i - 1 if i > 0 else n + i for i in idx]
+            for m in range(1, len(idx) - 1):          # fan any n-gons
+                raw += 1
+                (ka, pa), (kb, pb), (kc, pc) = snap(idx[0]), snap(idx[m]), snap(idx[m + 1])
+                if ka == kb or kb == kc or ka == kc:  # collapsed by the snap
+                    continue
+                key = tuple(sorted((ka, kb, kc)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                tris.append((pa, pb, pc))
+
+    if not tris:
+        sys.exit(f"{path}: no triangles found")
+    print(f"  OBJ: {n:,} verts, {raw:,} triangles; "
+          f"extents {[round(s, 1) for s in spans]}, up = {'xyz'[axis]}; "
+          f"snapped to {len(tris):,} on a {cell:.4g}-unit grid")
+    return tris
+
+
 def world_triangles(js, bin_):
     """Every triangle in the scene, in world space, Y-up as glTF stores it."""
     mats = node_matrices(js)
@@ -143,24 +224,41 @@ def world_triangles(js, bin_):
 # --------------------------------------------------------------------------
 
 def cluster(tris, cell):
-    """Snap to a grid, weld, drop triangles that collapsed to a line."""
+    """Snap to a grid, weld, drop triangles that collapsed to a line.
+
+    Each cell's representative is the MEAN of the vertices that fell into it,
+    not the cell's centre. Snapping to centres quantises the surface onto the
+    grid, which on a building is invisible - its faces are axis-aligned planes
+    already - but on an organic form it is ruinous: the first pass at the
+    Nefertiti scan came out as a heap of voxels. Averaging keeps the surface
+    where it actually was and only lowers its resolution.
+    """
     def key(p):
         return (round(p[0] / cell), round(p[1] / cell), round(p[2] / cell))
 
-    seen, verts, out = {}, [], []
+    acc: dict[tuple, list] = {}
+    keyed = []
     for a, b, c in tris:
         ka, kb, kc = key(a), key(b), key(c)
         if ka == kb or kb == kc or ka == kc:
             continue
-        ids = []
-        for k in (ka, kb, kc):
-            i = seen.get(k)
-            if i is None:
-                i = len(verts)
-                seen[k] = i
-                verts.append((k[0] * cell, k[1] * cell, k[2] * cell))
-            ids.append(i)
-        out.append(tuple(ids))
+        keyed.append((ka, kb, kc))
+        for k, p in ((ka, a), (kb, b), (kc, c)):
+            s = acc.get(k)
+            if s is None:
+                acc[k] = [p[0], p[1], p[2], 1]
+            else:
+                s[0] += p[0]
+                s[1] += p[1]
+                s[2] += p[2]
+                s[3] += 1
+
+    ids = {}
+    verts = []
+    for k, s in acc.items():
+        ids[k] = len(verts)
+        verts.append((s[0] / s[3], s[1] / s[3], s[2] / s[3]))
+    out = [(ids[ka], ids[kb], ids[kc]) for ka, kb, kc in keyed]
     return verts, out
 
 
@@ -318,6 +416,15 @@ def main():
     ap.add_argument("--credit", default="", help="attribution line, stored in extras")
     ap.add_argument("--svg", help="also write a flat axonometric sprite here")
     ap.add_argument("--svg-width", type=int, default=220)
+    ap.add_argument("--height", type=float, default=None,
+                    help="real height in metres. Scans in arbitrary units need "
+                         "this or the GLB lies about its size (Nefertiti: 0.49)")
+    ap.add_argument("--up", default="auto", choices=("auto", "x", "y", "z"),
+                    help="which OBJ axis points up (default: the tallest)")
+    ap.add_argument("--svg-azimuth", type=float, default=45.0,
+                    help="viewing angle for the sprite. 45 matches the map's "
+                         "axonometric; spin it when the subject has a front "
+                         "worth facing the viewer (Nefertiti wants 75)")
     ap.add_argument("--svg-tris", type=int, default=600,
                     help="the sprite is ~200 px wide; it needs far fewer "
                          "triangles than the mesh, and every one costs bytes")
@@ -326,8 +433,12 @@ def main():
                          "vertical axis, measured before decimation")
     args = ap.parse_args()
 
-    js, bin_ = read_glb(Path(args.input))
-    tris = world_triangles(js, bin_)
+    src = Path(args.input)
+    if src.suffix.lower() == ".obj":
+        tris = obj_triangles(src, args.up)
+    else:
+        js, bin_ = read_glb(src)
+        tris = world_triangles(js, bin_)
     print(f"read {len(tris):,} triangles")
 
     if args.crop_radius > 0:
@@ -358,6 +469,15 @@ def main():
     cy = (max(p[1] for p in zup) + min(p[1] for p in zup)) / 2
     zup = [(p[0] - cx, p[1] - cy, p[2] - minz) for p in zup]
 
+    # Sketchfab models are usually authored in metres; museum scans are not.
+    # The Nefertiti OBJ is ~10.3 units per centimetre, so without this the GLB
+    # claims a 489 m bust. Scaling to a catalogue height also fixes the units
+    # of the whole file, since the scan is uniform.
+    if args.height:
+        k = args.height / max(p[2] for p in zup)
+        zup = [(p[0] * k, p[1] * k, p[2] * k) for p in zup]
+        print(f"scaled by {k:.6g} to a stated height of {args.height} m")
+
     w = max(p[0] for p in zup) - min(p[0] for p in zup)
     d = max(p[1] for p in zup) - min(p[1] for p in zup)
     h = max(p[2] for p in zup)
@@ -375,7 +495,8 @@ def main():
         scx = (max(p[0] for p in szup) + min(p[0] for p in szup)) / 2
         scy = (max(p[1] for p in szup) + min(p[1] for p in szup)) / 2
         szup = [(p[0] - scx, p[1] - scy, p[2] - smin) for p in szup]
-        n, sh = write_svg(Path(args.svg), szup, sf, width=args.svg_width)
+        n, sh = write_svg(Path(args.svg), szup, sf, azimuth=args.svg_azimuth,
+                          width=args.svg_width)
         print(f"wrote {args.svg} ({Path(args.svg).stat().st_size/1024:.0f} kB, "
               f"{n:,} visible faces, {args.svg_width}x{sh:.0f})")
 
