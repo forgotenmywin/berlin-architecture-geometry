@@ -74,7 +74,7 @@ would matter, and only if the claim holds.
 
 234 MB zipped / 845 MB unpacked OBJ. **6,421,238 faces, 3,210,620 vertices.**
 
-Shipped from it: `out/nofretete.svg` (900 triangles, 31 kB) — a flat
+Shipped from it: `out/nofretete.svg` (3,000 triangles, 299 kB / 32 kB gzipped) — a flat
 axonometric sprite shown when you hover her pin, copied to
 `berlin-trip.spa/public/berlin/`. `out/nofretete.glb` (3,990 triangles) is
 written alongside it but **not** shipped to the app: the bust is 49 cm tall,
@@ -93,7 +93,7 @@ is carried in the `extras.credit` of every GLB derived from it, so it travels
 with the asset rather than living only here.
 
 Shipped from it: `out/hegel-denkmal.glb` (4,002 triangles; 77 kB after meshopt)
-for the 3D massing layer, and `out/hegel-denkmal.svg` (700 triangles, 25 kB)
+for the 3D massing layer, and `out/hegel-denkmal.svg` (1,400 triangles, 138 kB / 15 kB gzipped)
 for the hover sprite.
 
 Subject: Hegel-Denkmal by Gustav Blaeser, cast at Lauchhammer, unveiled

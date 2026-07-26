@@ -264,7 +264,8 @@ python3 mesh2paper.py scan.glb out/hegel-denkmal.glb --target-tris 4000 \
 # OBJ in — museum scans usually ship OBJ, and rarely in metres
 python3 mesh2paper.py scan.obj out/nofretete.glb --target-tris 4000 \
   --height 0.49 --name nofretete --credit "$CREDIT" \
-  --svg out/nofretete.svg --svg-azimuth 75 --svg-width 200 --svg-tris 900
+  --svg out/nofretete.svg --svg-azimuth 180 --svg-elevation 0 \
+  --svg-width 200 --svg-tris 3000
 ```
 
 Output matches what `glb` writes — local metres, Z up, one unlit primitive,
@@ -292,9 +293,33 @@ Nefertiti GLB claims a 489 m bust.
 
 `--svg` also emits a flat axonometric sprite. The map's default view loads no
 WebGL at all, so a monument that exists only as a mesh cannot appear there; a
-sprite can, at whatever size reads, at any zoom. `--svg-azimuth` defaults to
-the map's 45°, but spin it when the subject has a front worth showing — 75°
-for Nefertiti, which puts her three-quarters toward the viewer.
+sprite can, at whatever size reads, at any zoom.
+
+Three controls decide whether that sprite is legible, and all three mattered
+for Nefertiti:
+
+- **`--svg-elevation`** defaults to the map's 35.264°, which looks *down* at
+  the subject. That is right for a monument seen among buildings and wrong for
+  a portrait: every profile came out as a leaning L because the camera was
+  sitting on top of her crown. `0` puts it at eye level.
+- **`--svg-azimuth`** defaults to 45°. `180` is her left profile, the view she
+  is conventionally photographed in.
+- **`--svg-tris`** at the old default of 600–900 loses the flat-topped crown
+  that makes her recognisable. 3,000 costs 32 kB gzipped, which is nothing for
+  an asset fetched on hover.
+
+Two further fixes to the renderer itself, both visible at any angle. Polygons
+are stroked in **their own fill colour** — not an outline, but a way to close
+the anti-aliasing seams between adjacent faces, which otherwise read as a pale
+wireframe laid over the object. And faces are drawn **two-sided** by default:
+back-face culling assumes consistent winding, a scan does not have it, and the
+inward-wound faces were being culled into holes that showed the dark interior
+through as specks. `--svg-cull` restores culling and halves the file.
+
+The key light is defined in the image basis rather than in world space, so it
+follows the camera. A fixed world light only models the faces it happens to
+point at — swing round to a profile and the lit side is behind the object,
+leaving a flat grey cut-out.
 
 ---
 

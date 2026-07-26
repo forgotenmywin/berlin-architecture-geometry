@@ -356,20 +356,50 @@ def write_glb(path: Path, verts, faces, extras: dict):
     path.write_bytes(bytes(out))
 
 
-def write_svg(path: Path, verts, faces, azimuth=45.0, elevation=35.264, width=220):
+def write_svg(path: Path, verts, faces, azimuth=45.0, elevation=35.264,
+              width=220, cull=False):
     """Also emit a flat axonometric sprite.
 
     The map's default view has no WebGL layer loaded at all, so a monument that
     only exists as a mesh cannot be shown there. A pre-rendered sprite can:
     it is a plain <image>, costs nothing, and matches the paper styling.
 
-    Same projection as lod2.py's SVG writer, painter-sorted, no strokes — at
-    ~100 px on screen the internal edges would only muddy it.
+    Same projection as lod2.py's SVG writer, painter-sorted.
+
+    Each polygon is stroked in its OWN fill colour. That is not an outline —
+    it closes the anti-aliasing seams. Two triangles sharing an edge each cover
+    roughly half the boundary pixel, and the compositor leaves a sliver of
+    background showing through; across a few thousand faces that reads as a
+    pale wireframe laid over the object, which is what made the first Nefertiti
+    sprites look like rubble rather than stone. A half-pixel stroke of the
+    same colour overlaps the crack without changing any face's tone.
+
+    Two-sided by default. Back-face culling assumes consistent winding, and a
+    scan does not have it — a handful of outward faces come out wound inward,
+    get culled, and leave holes that show the darker interior through the
+    surface as dark specks. Drawing every face, with its normal flipped toward
+    the camera for shading, removes them: the far side is painted first and the
+    near side covers it. Roughly doubles the polygon count, which for the
+    Nefertiti sprite is 16 kB gzipped against 34 kB. `cull=True` buys the
+    bytes back if a model's winding is known good.
     """
     a, e = math.radians(azimuth), math.radians(elevation)
     right = (-math.sin(a), math.cos(a), 0.0)
     up = (math.sin(e) * math.cos(a), math.sin(e) * math.sin(a), math.cos(e))
     view = (math.cos(e) * math.cos(a), math.cos(e) * math.sin(a), -math.sin(e))
+
+    # Key light over the viewer's left shoulder, defined in the IMAGE basis
+    # rather than in world space. A fixed world-space light only models the
+    # faces it happens to point at: swing the camera round to a profile and the
+    # lit side is behind the object, leaving a flat grey cut-out. Tying the
+    # light to the camera means every azimuth gets the same modelling.
+    # Kept well off the view axis on purpose. Sitting it near the camera lights
+    # every front face equally, they all clip to white, and the form vanishes.
+    lx = -0.60 * right[0] + 0.70 * up[0] - 0.30 * view[0]
+    ly = -0.60 * right[1] + 0.70 * up[1] - 0.30 * view[1]
+    lz = -0.60 * right[2] + 0.70 * up[2] - 0.30 * view[2]
+    lln = math.sqrt(lx * lx + ly * ly + lz * lz) or 1.0
+    lx, ly, lz = lx / lln, ly / lln, lz / lln
 
     def proj(p):
         return (p[0] * right[0] + p[1] * right[1] + p[2] * right[2],
@@ -382,12 +412,17 @@ def write_svg(path: Path, verts, faces, azimuth=45.0, elevation=35.264, width=22
         vx, vy, vz = (pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2])
         nx, ny, nz = (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
         ln = math.sqrt(nx * nx + ny * ny + nz * nz) or 1.0
-        if (nx * view[0] + ny * view[1] + nz * view[2]) / ln >= 0:
+        facing = (nx * view[0] + ny * view[1] + nz * view[2]) / ln
+        if cull and facing >= 0:
             continue                       # faces away
-        lam = max(0.0, (nx / ln) * -0.45 + (ny / ln) * -0.35 + (nz / ln) * 0.82)
+        s = -1.0 / ln if facing > 0 else 1.0 / ln   # point it at the camera
+        lam = max(0.0, (nx * s) * lx + (ny * s) * ly + (nz * s) * lz)
         depth = sum(p[0] * view[0] + p[1] * view[1] + p[2] * view[2]
                     for p in (pa, pb, pc)) / 3
-        tris.append((depth, [proj(pa), proj(pb), proj(pc)], 0.60 + 0.40 * lam))
+        # Wider tonal range than the GLB's 0.60 + 0.40. The mesh gets read at
+        # a few pixels among buildings and wants to stay pale; the sprite is
+        # ~100 px of a single object and can afford real shadows.
+        tris.append((depth, [proj(pa), proj(pb), proj(pc)], 0.45 + 0.55 * lam))
     tris.sort(key=lambda t: -t[0])
 
     xs = [p[0] for _d, pp, _s in tris for p in pp]
@@ -399,7 +434,8 @@ def write_svg(path: Path, verts, faces, azimuth=45.0, elevation=35.264, width=22
     for _d, pp, sh in tris:
         pts = " ".join(f"{(p[0]-mnx)*scale:.1f},{(p[1]-mny)*scale:.1f}" for p in pp)
         v = max(0, min(255, round(sh * 255)))
-        body.append(f'<polygon points="{pts}" fill="#{v:02x}{v:02x}{v:02x}"/>')
+        c = f"#{v:02x}{v:02x}{v:02x}"
+        body.append(f'<polygon points="{pts}" fill="{c}" stroke="{c}" stroke-width=".5"/>')
     path.write_text(
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{h:.0f}" '
         f'viewBox="0 0 {width} {h:.0f}">{"".join(body)}</svg>\n', encoding="utf-8")
@@ -424,7 +460,16 @@ def main():
     ap.add_argument("--svg-azimuth", type=float, default=45.0,
                     help="viewing angle for the sprite. 45 matches the map's "
                          "axonometric; spin it when the subject has a front "
-                         "worth facing the viewer (Nefertiti wants 75)")
+                         "worth facing the viewer (Nefertiti: 180, her left "
+                         "profile)")
+    ap.add_argument("--svg-elevation", type=float, default=35.264,
+                    help="camera height for the sprite. 35.264 is the map's "
+                         "isometric, looking down; drop it near 0 for a "
+                         "portrait profile, or the view sits on top of the "
+                         "subject's head")
+    ap.add_argument("--svg-cull", action="store_true",
+                    help="back-face cull the sprite. Halves the file, but a "
+                         "scan's inconsistent winding then shows as dark specks")
     ap.add_argument("--svg-tris", type=int, default=600,
                     help="the sprite is ~200 px wide; it needs far fewer "
                          "triangles than the mesh, and every one costs bytes")
@@ -496,7 +541,8 @@ def main():
         scy = (max(p[1] for p in szup) + min(p[1] for p in szup)) / 2
         szup = [(p[0] - scx, p[1] - scy, p[2] - smin) for p in szup]
         n, sh = write_svg(Path(args.svg), szup, sf, azimuth=args.svg_azimuth,
-                          width=args.svg_width)
+                          elevation=args.svg_elevation, width=args.svg_width,
+                          cull=args.svg_cull)
         print(f"wrote {args.svg} ({Path(args.svg).stat().st_size/1024:.0f} kB, "
               f"{n:,} visible faces, {args.svg_width}x{sh:.0f})")
 
