@@ -1,0 +1,117 @@
+name: Berlin LoD2 MCP Quick Tunnel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: berlin-lod2-mcp
+  cancel-in-progress: true
+
+jobs:
+  mcp-server:
+    name: Start Berlin LoD2 MCP
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Install Cloudflare Quick Tunnel client
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 4 --retry-delay 2 \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o "$RUNNER_TEMP/cloudflared"
+          chmod +x "$RUNNER_TEMP/cloudflared"
+          "$RUNNER_TEMP/cloudflared" --version
+
+      - name: Start MCP and Quick Tunnel
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data/zips data/tiles data/requests out
+
+          python -m uvicorn mcp_server:app --host 0.0.0.0 --port 8000 --log-level info \
+            > "$RUNNER_TEMP/berlin-mcp-server.log" 2>&1 &
+          SERVER_PID=$!
+
+          echo "Waiting for MCP HTTP server..."
+          SERVER_READY=0
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null; then
+              SERVER_READY=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$SERVER_READY" -ne 1 ]; then
+            echo "MCP server did not become healthy. Server log follows:"
+            cat "$RUNNER_TEMP/berlin-mcp-server.log"
+            exit 1
+          fi
+
+          "$RUNNER_TEMP/cloudflared" tunnel --url http://127.0.0.1:8000 --no-autoupdate \
+            > "$RUNNER_TEMP/berlin-cloudflared.log" 2>&1 &
+          TUNNEL_PID=$!
+
+          echo "Waiting for Cloudflare Quick Tunnel URL..."
+          TUNNEL_URL=""
+          for attempt in $(seq 1 90); do
+            TUNNEL_URL=$(grep -Eo 'https://[a-zA-Z0-9-]+\.trycloudflare\.com' \
+              "$RUNNER_TEMP/berlin-cloudflared.log" | head -n 1 || true)
+            if [ -n "$TUNNEL_URL" ]; then
+              break
+            fi
+            if ! kill -0 "$TUNNEL_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "$TUNNEL_URL" ]; then
+            echo "Cloudflare did not provide a trycloudflare.com URL. Tunnel log follows:"
+            cat "$RUNNER_TEMP/berlin-cloudflared.log"
+            exit 1
+          fi
+
+          printf '%s\n' "$TUNNEL_URL" > data/public_url.txt
+          {
+            echo "## Berlin LoD2 MCP is online"
+            echo
+            echo "**MCP URL:** ${TUNNEL_URL}/mcp/"
+            echo
+            echo "**Health check:** ${TUNNEL_URL}/healthz"
+            echo
+            echo "The Quick Tunnel URL changes when this workflow is restarted. Keep this job running while using the MCP."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "=================================================="
+          echo "MCP URL: ${TUNNEL_URL}/mcp/"
+          echo "Health:  ${TUNNEL_URL}/healthz"
+          echo "=================================================="
+          echo "The server is running. Stop this workflow to shut it down."
+
+          while kill -0 "$SERVER_PID" 2>/dev/null && kill -0 "$TUNNEL_PID" 2>/dev/null; do
+            sleep 20
+          done
+
+          echo "MCP server or Cloudflare Tunnel stopped."
+          cat "$RUNNER_TEMP/berlin-mcp-server.log"
+          cat "$RUNNER_TEMP/berlin-cloudflared.log"
